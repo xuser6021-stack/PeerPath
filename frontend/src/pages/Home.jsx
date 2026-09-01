@@ -14,13 +14,21 @@ import {
   ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Button, Card, Badge, Avatar } from '../components/common';
+import { Button, Card, Badge, Avatar, EmptyState } from '../components/common';
 import { usePaths } from '../hooks/usePaths';
+
+const CATEGORY_BADGE_VARIANTS = {
+  'Web Dev': 'primary',
+  'Data Science': 'success',
+  Design: 'warning',
+  'AI/ML': 'accent',
+  Cybersecurity: 'danger',
+};
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
-  const { paths: trendingPaths, loading, error } = usePaths({ sort: 'trending' });
+  const { paths: trendingPaths, loading, error } = usePaths({ sort: 'created_at' });
   const displayedPaths = trendingPaths.slice(0, 6);
 
   const handleSearch = (e) => {
@@ -182,67 +190,87 @@ export default function Home() {
         </div>
 
         {/* Cards Container: Horizontal scroll row on mobile, responsive grid on desktop */}
-        <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none snap-x snap-mandatory">
-          {TRENDING_PATHS.map((path) => (
-            <div key={path.id} className="min-w-[290px] sm:min-w-[320px] md:min-w-0 snap-start flex-1 flex">
-              <Card
-                className="w-full flex flex-col justify-between p-5 sm:p-6 cursor-pointer border hover:border-primary-300 dark:hover:border-primary-700 group"
-                onClick={() => navigate(`/path/${path.id}`)}
-              >
-                {/* Card Top: Tags & Category */}
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <Badge variant={path.badgeVariant}>
-                      {path.category}
-                    </Badge>
-                    {path.mustLearn && (
-                      <Badge variant="must">MUST LEARN</Badge>
-                    )}
-                  </div>
-
-                  {/* Title & Description */}
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
-                    {path.title}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
-                    {path.description}
-                  </p>
-                </div>
-
-                {/* Card Bottom: Author, Steps, Rating, Followers */}
-                <div className="pt-4 mt-5 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
-                  {/* Author Row */}
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <Avatar name={path.author} size="xs" />
-                      <span className="font-medium text-slate-700 dark:text-slate-300">
-                        {path.author}
-                      </span>
-                    </div>
-                    <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5" />
-                      {path.steps} steps
-                    </span>
-                  </div>
-
-                  {/* Metrics Row: Rating + Followers */}
-                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
-                    <div className="flex items-center gap-1 text-amber-500 font-semibold">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span>{path.rating}</span>
-                      <span className="text-slate-400 font-normal">({path.reviews})</span>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                      <Users className="w-3.5 h-3.5" />
-                      <span>{path.followers} learners</span>
-                    </div>
-                  </div>
-                </div>
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3].map((item) => (
+              <Card key={item} className="p-5 sm:p-6 animate-pulse">
+                <div className="h-6 w-24 rounded-full bg-slate-200 dark:bg-slate-700 mb-4" />
+                <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-700 mb-3" />
+                <div className="h-4 w-full rounded bg-slate-200 dark:bg-slate-700 mb-2" />
+                <div className="h-4 w-5/6 rounded bg-slate-200 dark:bg-slate-700 mb-6" />
+                <div className="h-10 rounded bg-slate-200 dark:bg-slate-700" />
               </Card>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : error ? (
+          <EmptyState
+            title="Trending paths unavailable"
+            description="We couldn't load the latest community paths right now. Please try again in a moment."
+          />
+        ) : displayedPaths.length === 0 ? (
+          <EmptyState
+            title="No trending paths yet"
+            description="Looks like the community hasn't created a path for this goal yet. Be the first to share one."
+          />
+        ) : (
+          <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none snap-x snap-mandatory">
+            {displayedPaths.map((path) => {
+              const authorName = path.profiles?.username || 'Community';
+              const stepCount = path.steps?.[0]?.count ?? 0;
+              const categoryVariant = CATEGORY_BADGE_VARIANTS[path.category] || 'neutral';
+
+              return (
+                <div key={path.id} className="min-w-[290px] sm:min-w-[320px] md:min-w-0 snap-start flex-1 flex">
+                  <Card
+                    className="w-full flex flex-col justify-between p-5 sm:p-6 cursor-pointer border hover:border-primary-300 dark:hover:border-primary-700 group"
+                    onClick={() => navigate(`/path/${path.id}`)}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <Badge variant={categoryVariant}>{path.category}</Badge>
+                        {path.difficulty && <Badge variant="nice">{path.difficulty}</Badge>}
+                      </div>
+
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
+                        {path.title}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                        {path.description}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 mt-5 border-t border-slate-100 dark:border-slate-800/80 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar name={authorName} size="xs" />
+                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
+                            {authorName}
+                          </span>
+                        </div>
+                        <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
+                          <Layers className="w-3.5 h-3.5" />
+                          {stepCount} steps
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
+                        <div className="flex items-center gap-1 text-amber-500 font-semibold">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span>{path.difficulty || 'Community'}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
+                          <Users className="w-3.5 h-3.5" />
+                          <span>{path.difficulty ? 'Popular' : 'New'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
