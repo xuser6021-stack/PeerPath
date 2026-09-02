@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export function useSuggestions() {
@@ -6,16 +6,34 @@ export function useSuggestions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchSuggestions = async () => {
+  const fetchSuggestions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const { data, error: err } = await supabase
         .from('suggestions')
-        .select('id, votes, status, resource_id, path_id, step_id, resources!inner(title, url), paths!inner(title as path_title), steps!inner(title as step_title)')
-        .eq('status', 'pending');
+        .select('id, votes, status, resource_id, suggested_by, suggested_title, suggested_url, reason, created_at, resources!inner(title, url, type, avg_rating, steps!inner(title, paths!inner(title)))')
+        .in('status', ['pending', 'accepted']);
       if (err) throw err;
-      setSuggestions(data);
+      setSuggestions((data || []).map((suggestion) => ({
+        ...suggestion,
+        pathTitle: suggestion.resources?.steps?.paths?.title || 'Path',
+        stepTitle: suggestion.resources?.steps?.title || 'Step',
+        author: suggestion.suggested_by || 'Peer learner',
+        timeAgo: suggestion.created_at ? new Date(suggestion.created_at).toLocaleDateString() : 'Recently',
+        oldResource: {
+          title: suggestion.resources?.title || 'Current resource',
+          rating: suggestion.resources?.avg_rating || 0,
+          type: suggestion.resources?.type || 'Resource',
+        },
+        newResource: {
+          title: suggestion.suggested_title,
+          rating: 0,
+          type: suggestion.resources?.type || 'Resource',
+        },
+        requiredVotes: 10,
+        isMerged: suggestion.status === 'accepted',
+      })));
     } catch (e) {
       console.error(e);
       setError(e);
@@ -23,12 +41,11 @@ export function useSuggestions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSuggestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchSuggestions]);
 
   const upvote = async (suggestionId) => {
     // optimistic UI update
@@ -39,7 +56,7 @@ export function useSuggestions() {
       // fetch current suggestion
       const { data: current, error: fetchErr } = await supabase
         .from('suggestions')
-        .select('votes, status, resource_id, title, url')
+        .select('votes, status, resource_id, suggested_title, suggested_url')
         .eq('id', suggestionId)
         .single();
       if (fetchErr) throw fetchErr;
@@ -51,7 +68,7 @@ export function useSuggestions() {
       if (updErr) throw updErr;
       const { data: fresh, error: freshErr } = await supabase
         .from('suggestions')
-        .select('votes, status, resource_id, title, url')
+        .select('votes, status, resource_id, suggested_title, suggested_url')
         .eq('id', suggestionId)
         .single();
       if (freshErr) throw freshErr;
@@ -59,7 +76,7 @@ export function useSuggestions() {
         // accept suggestion: update resource and mark accepted
         const { error: resErr } = await supabase
           .from('resources')
-          .update({ title: fresh.title, url: fresh.url })
+          .update({ title: fresh.suggested_title, url: fresh.suggested_url })
           .eq('id', fresh.resource_id);
         if (resErr) throw resErr;
         const { error: suggErr } = await supabase
@@ -73,10 +90,11 @@ export function useSuggestions() {
       setError(e);
       // rollback UI by refetching list
       await fetchSuggestions();
-      return;
+      return false;
     }
     // refresh list
     await fetchSuggestions();
+    return true;
   };
 
   return { suggestions, loading, error, upvote };

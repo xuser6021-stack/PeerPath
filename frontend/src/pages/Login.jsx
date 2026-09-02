@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Layers, AlertCircle, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button } from '../components/common';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabaseClient';
 
 function GoogleIcon({ className = 'w-4 h-4' }) {
   return (
@@ -34,6 +35,7 @@ export default function Login() {
   const [showDemoErrors, setShowDemoErrors] = useState(false);
   const [authError, setAuthError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signIn, signUp, signInWithGoogle } = useAuth();
 
   // Redirect already-authenticated users away from /login
@@ -74,12 +76,17 @@ export default function Login() {
       if (isLogin) {
         await signIn(formData.email, formData.password);
         toast.success('Welcome back to PathForge!');
+        navigate(location.state?.from?.pathname || '/', { replace: true });
       } else {
-        await signUp(formData.email, formData.password, formData.username);
+        const signupData = await signUp(formData.email, formData.password, formData.username);
+        if (signupData?.session) {
+          toast.success('Account created! Welcome to PathForge.');
+          navigate('/', { replace: true });
+          return;
+        }
         toast.success('Account created! Check your email to confirm, then log in.');
         setMode('login');
       }
-      navigate('/');
     } catch (err) {
       setAuthError(err.message ?? 'Something went wrong. Please try again.');
     } finally {
@@ -226,7 +233,16 @@ export default function Login() {
                     href="#forgot"
                     onClick={(e) => {
                       e.preventDefault();
-                      toast('Password reset link sent to registered email');
+                      if (!formData.email) {
+                        setAuthError('Enter your email address first.');
+                        return;
+                      }
+                      supabase.auth.resetPasswordForEmail(formData.email, {
+                        redirectTo: `${window.location.origin}/login`,
+                      }).then(({ error }) => {
+                        if (error) setAuthError(error.message);
+                        else toast.success('Password reset link sent to your email.');
+                      });
                     }}
                     className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
                   >

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -21,134 +21,118 @@ import {
   Avatar,
   EmptyState
 } from '../components/common';
+import { useAuth } from '../hooks/useAuth';
+import { useGroups } from '../hooks/useGroups';
+import { supabase } from '../lib/supabaseClient';
 
-const STATS_DATA = [
-  {
-    label: 'Steps completed',
-    value: '28',
-    subtext: 'across 4 active curricula',
-    icon: CheckCircle2,
-    color: 'text-success-600 dark:text-success-400 bg-success-50 dark:bg-success-950/60 border-success-200/80 dark:border-success-800/80',
-  },
-  {
-    label: 'Current streak',
-    value: '14',
-    unit: 'days',
-    subtext: 'Personal best: 21 days',
-    icon: Flame,
-    color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200/80 dark:border-amber-800/80',
-  },
-  {
-    label: 'Paths followed',
-    value: '4',
-    subtext: '2 nearing completion',
-    icon: Compass,
-    color: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/60 border-primary-200/80 dark:border-primary-800/80',
-  },
-  {
-    label: 'Paths created',
-    value: '2',
-    subtext: '32 community bookmarks',
-    icon: Layers,
-    color: 'text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-950/60 border-accent-200/80 dark:border-accent-800/80',
-  },
-];
+const STAT_COLORS = {
+  success: 'text-success-600 dark:text-success-400 bg-success-50 dark:bg-success-950/60 border-success-200/80 dark:border-success-800/80',
+  amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200/80 dark:border-amber-800/80',
+  primary: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/60 border-primary-200/80 dark:border-primary-800/80',
+  accent: 'text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-950/60 border-accent-200/80 dark:border-accent-800/80',
+};
 
-const ACTIVE_PATHS = [
-  {
-    id: 'fullstack-react-nextjs',
-    title: 'Fullstack React & Next.js Architecture',
-    category: 'Web Dev',
-    completedSteps: 5,
-    totalSteps: 7,
-    percentage: 71,
-    currentStepTitle: 'Server Components & Next.js App Router Internals',
-    lastActive: 'Active 2 hours ago',
-    badgeVariant: 'primary',
-  },
-  {
-    id: 'generative-ai-llms',
-    title: 'Generative AI & LLM App Engineering',
-    category: 'AI/ML',
-    completedSteps: 4,
-    totalSteps: 10,
-    percentage: 40,
-    currentStepTitle: 'RAG Architecture with Vector Databases',
-    lastActive: 'Active yesterday',
-    badgeVariant: 'accent',
-  },
-  {
-    id: 'distributed-systems-go',
-    title: 'Distributed Systems & Microservices in Go',
-    category: 'Backend',
-    completedSteps: 2,
-    totalSteps: 8,
-    percentage: 25,
-    currentStepTitle: 'gRPC Streaming & Protocol Buffers',
-    lastActive: 'Active 3 days ago',
-    badgeVariant: 'neutral',
-  },
-];
+function getCurrentStreak(progress) {
+  const completedDates = new Set(progress.filter((item) => item.completed && item.completed_at).map((item) => new Date(item.completed_at).toISOString().slice(0, 10)));
+  let date = new Date();
+  let streak = 0;
+  while (completedDates.has(date.toISOString().slice(0, 10))) {
+    streak += 1;
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return streak;
+}
 
-const COMPLETED_PATHS = [
-  {
-    id: 'modern-typescript-mastery',
-    title: 'Modern TypeScript from Zero to Production',
-    category: 'Web Dev',
-    completionDate: 'Aug 18, 2026',
-    milestonesCount: 9,
-    author: 'Sofia Morales',
-  },
-  {
-    id: 'ui-design-figma',
-    title: 'Product Design Systems & Tokens in Figma',
-    category: 'Design',
-    completionDate: 'Jul 29, 2026',
-    milestonesCount: 8,
-    author: 'Elena Rostova',
-  },
-];
-
-const PEER_MEMBERS = [
-  {
-    id: 1,
-    name: 'Sarah Connor',
-    role: 'Staff Frontend Engineer',
-    currentMilestone: 'Step 6: Performance & Caching',
-    progress: 85,
-    status: 'online',
-  },
-  {
-    id: 2,
-    name: 'Alex Turner (You)',
-    role: 'Full-Stack Learner',
-    currentMilestone: 'Step 5: State & Server Actions',
-    progress: 71,
-    status: 'online',
-    isCurrentUser: true,
-  },
-  {
-    id: 3,
-    name: 'Marcus Vance',
-    role: 'Backend Developer',
-    currentMilestone: 'Step 4: App Router Internals',
-    progress: 60,
-    status: 'away',
-  },
-  {
-    id: 4,
-    name: 'Dr. Maya Chen',
-    role: 'Data Engineer',
-    currentMilestone: 'Step 3: Component Composition',
-    progress: 45,
-    status: 'offline',
-  },
-];
+function pathProgressRowsForPath(path, rows) {
+  return rows.filter((row) => row.path_id === path.id && row.completed);
+}
 
 export default function Progress() {
+  const { user } = useAuth();
   const [showProgressToGroup, setShowProgressToGroup] = useState(true);
   const [showEmptyStateDemo, setShowEmptyStateDemo] = useState(false);
+  const [progressRows, setProgressRows] = useState([]);
+  const [followedPaths, setFollowedPaths] = useState([]);
+  const [createdPathsCount, setCreatedPathsCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const loadProgress = async () => {
+      setLoading(true);
+      const [{ data: progressData, error: progressError }, { count: createdPathsCountFromDb, error: createdError }] = await Promise.all([
+        supabase.from('progress').select('user_id, path_id, step_id, completed, completed_at, created_at').eq('user_id', user.id),
+        supabase.from('paths').select('id', { count: 'exact', head: true }).eq('author_id', user.id),
+      ]);
+      if (progressError || createdError) {
+        toast.error((progressError || createdError).message);
+        setLoading(false);
+        return;
+      }
+      const rows = progressData || [];
+      const pathIds = [...new Set(rows.map((row) => row.path_id))];
+      let paths = [];
+      if (pathIds.length > 0) {
+        const { data, error } = await supabase
+          .from('paths')
+          .select('id, title, category, author_id, profiles(username), steps(id, title, order_index)')
+          .in('id', pathIds);
+        if (error) {
+          toast.error(error.message);
+          setLoading(false);
+          return;
+        }
+        paths = data || [];
+      }
+      setProgressRows(rows);
+      setFollowedPaths(paths);
+      setCreatedPathsCount(createdPathsCountFromDb || 0);
+      setLoading(false);
+    };
+    loadProgress();
+  }, [user?.id]);
+
+  const activePaths = followedPaths.map((path) => {
+    const pathProgress = progressRows.filter((row) => row.path_id === path.id);
+    const completedSteps = pathProgress.filter((row) => row.completed).length;
+    const totalSteps = path.steps?.length || 0;
+    const nextStep = path.steps?.find((step) => !pathProgress.some((row) => row.step_id === step.id && row.completed));
+    const latestActivity = pathProgress.map((row) => row.completed_at || row.created_at).filter(Boolean).sort().at(-1);
+    return {
+      ...path,
+      completedSteps,
+      totalSteps,
+      percentage: totalSteps ? Math.round((completedSteps / totalSteps) * 100) : 0,
+      currentStepTitle: nextStep?.title || 'All steps complete',
+      lastActive: latestActivity ? `Active ${new Date(latestActivity).toLocaleDateString()}` : 'Not started',
+      badgeVariant: path.category === 'AI/ML' ? 'accent' : 'primary',
+    };
+  }).filter((path) => path.completedSteps > 0 && path.completedSteps < path.totalSteps);
+
+  const completedPaths = followedPaths.map((path) => {
+    const pathProgress = progressRows.filter((row) => row.path_id === path.id && row.completed);
+    const completionDate = pathProgress.map((row) => row.completed_at).filter(Boolean).sort().at(-1);
+    return {
+      ...path,
+      completionDate: completionDate ? new Date(completionDate).toLocaleDateString() : 'Completed',
+      milestonesCount: path.steps?.length || 0,
+      author: path.profiles?.username || path.author_id,
+    };
+  }).filter((path) => path.steps?.length > 0 && pathProgressRowsForPath(path, progressRows).length === path.steps.length);
+
+  const peerPath = activePaths[0] || completedPaths[0] || followedPaths[0];
+  const { group } = useGroups(peerPath?.id, user?.id);
+  const statsData = [
+    { label: 'Steps completed', value: progressRows.filter((row) => row.completed).length, subtext: `across ${new Set(progressRows.map((row) => row.path_id)).size} paths`, icon: CheckCircle2, color: STAT_COLORS.success },
+    { label: 'Current streak', value: getCurrentStreak(progressRows), unit: 'days', subtext: 'Consecutive learning days', icon: Flame, color: STAT_COLORS.amber },
+    { label: 'Paths followed', value: new Set(progressRows.map((row) => row.path_id)).size, subtext: `${activePaths.length} in progress`, icon: Compass, color: STAT_COLORS.primary },
+    { label: 'Paths created', value: createdPathsCount, subtext: 'Created by you', icon: Layers, color: STAT_COLORS.accent },
+  ];
+
+  if (loading) {
+    return <div className="space-y-10 py-2 sm:py-6 max-w-5xl mx-auto text-sm text-slate-500">Loading learning progress...</div>;
+  }
 
   const handleToggleShare = () => {
     const next = !showProgressToGroup;
@@ -204,7 +188,7 @@ export default function Progress() {
         <>
           {/* 1. 2x2 STAT GRID AT THE TOP (Single col below ~400px, 2 col mobile, 4 col desktop) */}
           <section className="grid grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4 gap-4">
-            {STATS_DATA.map((stat) => {
+            {statsData.map((stat) => {
               const Icon = stat.icon;
               return (
                 <Card key={stat.label} className="p-5 flex flex-col justify-between">
@@ -249,13 +233,13 @@ export default function Progress() {
                 </p>
               </div>
               <Badge variant="primary" dot>
-                {ACTIVE_PATHS.length} active
+                {activePaths.length} active
               </Badge>
             </div>
 
             {/* Vertical list of path progress cards */}
             <div className="space-y-4">
-              {ACTIVE_PATHS.map((path) => (
+              {activePaths.map((path) => (
                 <Card
                   key={path.id}
                   className="p-5 sm:p-6 hover:border-primary-300 dark:hover:border-primary-700 transition-all group"
@@ -331,13 +315,13 @@ export default function Progress() {
                 </p>
               </div>
               <Badge variant="success">
-                {COMPLETED_PATHS.length} Completed
+                {completedPaths.length} Completed
               </Badge>
             </div>
 
             {/* Simpler List */}
             <div className="space-y-3">
-              {COMPLETED_PATHS.map((item) => (
+              {completedPaths.map((item) => (
                 <Card
                   key={item.id}
                   className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -384,7 +368,7 @@ export default function Progress() {
                     Your peer group
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    You're grouped with 4 other learners on <strong>Fullstack React & Next.js Architecture</strong>
+                    {group?.members?.length ? `You're grouped with ${group.members.length - 1} other learners on ` : 'Join a peer group to learn alongside others on '}<strong>{peerPath?.title || 'your active path'}</strong>
                   </p>
                 </div>
 
@@ -412,7 +396,7 @@ export default function Progress() {
 
               {/* Peer Rows */}
               <div className="space-y-3">
-                {PEER_MEMBERS.map((peer) => (
+                {(group?.members || []).map((peer) => (
                   <div
                     key={peer.id}
                     className={`p-3.5 sm:p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${

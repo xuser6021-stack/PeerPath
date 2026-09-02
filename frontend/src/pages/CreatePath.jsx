@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button, Card, Badge } from '../components/common';
+import { useCreatePath } from '../hooks/useCreatePath';
 
 const CATEGORY_OPTIONS = [
   'Web Dev',
@@ -94,6 +95,8 @@ export default function CreatePath() {
 
   // Preview Modal State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+  const { createPath, loading } = useCreatePath();
 
   // Metadata handlers
   const handleMetadataChange = (field, value) => {
@@ -197,18 +200,24 @@ export default function CreatePath() {
   };
 
   // Publish / Save Draft actions
-  const handleSaveDraft = () => {
-    toast.success('Path saved to drafts!');
-  };
-
-  const handlePublish = (e) => {
+  const handleSubmit = async (e, isPublic) => {
     e.preventDefault();
-    if (!metadata.title.trim()) {
-      toast.error('Please provide a path title');
+    const errors = {};
+    if (!metadata.title.trim()) errors.title = 'Path title is required.';
+    if (steps.length === 0) errors.steps = 'At least one step is required.';
+    if (steps.some((step) => !step.title.trim())) errors.stepTitles = 'Each step needs a title.';
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) {
       return;
     }
-    toast.success('Path published to the community catalog! 🎉');
-    navigate('/explore');
+
+    const result = await createPath({ ...metadata, steps, is_public: isPublic });
+    if (!result || result.error) {
+      toast.error(result?.error?.message || 'Unable to save this path. Please try again.');
+      return;
+    }
+    toast.success(isPublic ? 'Path published!' : 'Draft saved!');
+    navigate(`/path/${result.pathId}`);
   };
 
   return (
@@ -228,7 +237,7 @@ export default function CreatePath() {
         </Badge>
       </div>
 
-      <form onSubmit={handlePublish} className="space-y-10">
+      <form onSubmit={(e) => handleSubmit(e, true)} className="space-y-10">
         {/* 2. PATH METADATA CARD */}
         <Card className="p-6 sm:p-7 space-y-6">
           <div className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
@@ -253,12 +262,12 @@ export default function CreatePath() {
               <input
                 id="path-title"
                 type="text"
-                required
                 value={metadata.title}
                 onChange={(e) => handleMetadataChange('title', e.target.value)}
                 placeholder="e.g. Distributed Systems & Microservices in Go"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
               />
+              {validationErrors.title && <p className="mt-1.5 text-xs font-medium text-danger-600 dark:text-danger-400">{validationErrors.title}</p>}
             </div>
 
             {/* Description */}
@@ -346,6 +355,8 @@ export default function CreatePath() {
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                 Break your curriculum into sequential milestones with curated learning resources.
               </p>
+              {validationErrors.steps && <p className="mt-1.5 text-xs font-medium text-danger-600 dark:text-danger-400">{validationErrors.steps}</p>}
+              {validationErrors.stepTitles && <p className="mt-1.5 text-xs font-medium text-danger-600 dark:text-danger-400">{validationErrors.stepTitles}</p>}
             </div>
           </div>
 
@@ -413,7 +424,6 @@ export default function CreatePath() {
                     </label>
                     <input
                       type="text"
-                      required
                       value={step.title}
                       onChange={(e) => handleStepChange(step.id, 'title', e.target.value)}
                       placeholder="e.g. Core Concurrency & Goroutine Architecture"
@@ -545,7 +555,8 @@ export default function CreatePath() {
               type="button"
               variant="outline"
               size="md"
-              onClick={handleSaveDraft}
+              onClick={(e) => handleSubmit(e, false)}
+              isLoading={loading}
             >
               Save as draft
             </Button>
@@ -565,6 +576,7 @@ export default function CreatePath() {
               variant="primary"
               size="md"
               leftIcon={Sparkles}
+              isLoading={loading}
               className="shadow-md shadow-primary-500/20 font-semibold"
             >
               Publish path

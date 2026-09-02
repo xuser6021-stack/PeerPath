@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowUp,
   AlertTriangle,
@@ -9,152 +9,54 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Badge, Button, Avatar } from '../components/common';
-
-const INITIAL_SUGGESTIONS = [
-  {
-    id: 1,
-    pathTitle: 'Fullstack React & Next.js Architecture',
-    stepTitle: 'Step 2: React 19 Core Mental Model',
-    author: 'Elena Rostova',
-    authorRole: 'Frontend Specialist',
-    timeAgo: '2 hours ago',
-    oldResource: {
-      title: 'Class Components & Lifecycle Methods in React 16.8',
-      rating: 3.8,
-      type: 'Doc',
-    },
-    newResource: {
-      title: 'React 19 Mental Model, Server Actions & useOptimistic Guide',
-      rating: 4.9,
-      type: 'Article',
-    },
-    reason: 'The old tutorial teaches legacy componentDidMount lifecycles. This new guide directly covers modern React 19 compiler paradigms and action states.',
-    votes: 8,
-    requiredVotes: 10,
-    hasUpvoted: false,
-    isMerged: false,
-  },
-  {
-    id: 2,
-    pathTitle: 'Applied Data Science with Python & Polars',
-    stepTitle: 'Step 3: High-Performance Dataframes',
-    author: 'Marcus Vance',
-    authorRole: 'Data Engineer',
-    timeAgo: '5 hours ago',
-    oldResource: {
-      title: 'Intro to Pandas 1.x & Itertuples for Loop Processing',
-      rating: 4.1,
-      type: 'Video',
-    },
-    newResource: {
-      title: 'High-Performance Data Analytics with Polars & Apache Arrow',
-      rating: 4.9,
-      type: 'Doc',
-    },
-    reason: 'Polars is 10-50x faster for large datasets and has become the de-facto standard in modern enterprise data pipelines.',
-    votes: 7,
-    requiredVotes: 10,
-    hasUpvoted: false,
-    isMerged: false,
-  },
-  {
-    id: 3,
-    pathTitle: 'Generative AI & LLM App Engineering',
-    stepTitle: 'Step 4: Vector Embeddings & RAG Architecture',
-    author: 'Liam Gallagher',
-    authorRole: 'AI Systems Architect',
-    timeAgo: '1 day ago',
-    oldResource: {
-      title: 'Building Simple Similarity Search in LangChain 0.0.x',
-      rating: 3.4,
-      type: 'Project',
-    },
-    newResource: {
-      title: 'Production RAG with Hybrid Dense/Sparse Search & LlamaIndex',
-      rating: 4.8,
-      type: 'Article',
-    },
-    reason: 'The LangChain 0.0 syntax is completely deprecated and breaks with newer dependencies. This replacement is robust and actively maintained.',
-    votes: 9,
-    requiredVotes: 10,
-    hasUpvoted: true,
-    isMerged: false,
-  },
-  {
-    id: 4,
-    pathTitle: 'Distributed Systems & Microservices in Go',
-    stepTitle: 'Step 1: Go Concurrency & Goroutines',
-    author: 'Sarah Connor',
-    authorRole: 'Staff Infrastructure Engineer',
-    timeAgo: '3 days ago',
-    oldResource: {
-      title: 'Goroutines & Go 1.14 Concurrency Examples',
-      rating: 4.0,
-      type: 'Doc',
-    },
-    newResource: {
-      title: 'Effective Go Concurrency, Context Propagation & Channel Pipelines',
-      rating: 5.0,
-      type: 'Doc',
-    },
-    reason: 'Updated with Go 1.22+ loop semantics and sync.Map idioms. Verified by 10 peer learners.',
-    votes: 10,
-    requiredVotes: 10,
-    hasUpvoted: false,
-    isMerged: true, // Already merged state
-  },
-];
-
-const FLAGGED_ITEMS = [
-  {
-    id: 'flag-1',
-    resourceName: 'Legacy Webpack 4 Config Tutorial for SPA Bundling',
-    pathContext: 'Modern Web Dev Roadmap → Step 1: Bundlers & Setup',
-    reason: 'No completions in 90 days • Reported deprecated by 14 learners',
-    flaggedCount: 14,
-  },
-  {
-    id: 'flag-2',
-    resourceName: 'Docker Swarm Orchestration Fundamentals',
-    pathContext: 'Cloud Native Microservices → Step 5: Container Orchestration',
-    reason: 'Industry consensus shifted to Kubernetes & K3s • Broken documentation links',
-    flaggedCount: 9,
-  },
-  {
-    id: 'flag-3',
-    resourceName: 'Python 3.7 Type Hinting Workarounds & Backports',
-    pathContext: 'Data Science with Python → Step 2: Pythonic Typings',
-    reason: 'Python 3.7 reached end-of-life • Contains broken GitHub repo links',
-    flaggedCount: 6,
-  },
-];
-
+import { useSuggestions } from '../hooks/useSuggestions';
+import { supabase } from '../lib/supabaseClient';
 export default function Community() {
-  const [suggestions, setSuggestions] = useState(INITIAL_SUGGESTIONS);
+  const { suggestions, loading: suggestionsLoading, upvote } = useSuggestions();
+  const [flaggedItems, setFlaggedItems] = useState([]);
+  const [flaggedLoading, setFlaggedLoading] = useState(true);
 
-  // Optimistic Upvote Toggle Handler
-  const handleUpvote = (id) => {
-    setSuggestions((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const nextVoted = !item.hasUpvoted;
-          const nextVotes = nextVoted ? item.votes + 1 : item.votes - 1;
+  const loadFlaggedItems = async () => {
+    setFlaggedLoading(true);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const { data, error } = await supabase
+      .from('resources')
+      .select('id, title, type, flag_count, last_activity_at, steps!inner(title, paths!inner(title))')
+      .or(`flag_count.gt.0,last_activity_at.lt.${cutoff.toISOString()}`);
+    if (error) {
+      toast.error(error.message);
+      setFlaggedItems([]);
+    } else {
+      setFlaggedItems((data || []).map((resource) => ({
+        ...resource,
+        resourceName: resource.title,
+        pathContext: `${resource.steps?.paths?.title || 'Path'} → ${resource.steps?.title || 'Step'}`,
+        reason: resource.flag_count > 0 ? `${resource.flag_count} learner flags` : 'No activity in the last 90 days',
+        flaggedCount: resource.flag_count || 0,
+      })));
+    }
+    setFlaggedLoading(false);
+  };
 
-          if (nextVoted) {
-            toast.success(`Vote added! (${nextVotes} of ${item.requiredVotes} votes to auto-merge)`);
-          } else {
-            toast('Vote removed', { icon: '↩️' });
-          }
+  useEffect(() => {
+    loadFlaggedItems();
+  }, []);
 
-          return {
-            ...item,
-            hasUpvoted: nextVoted,
-            votes: nextVotes,
-          };
-        }
-        return item;
-      })
-    );
+  const handleUpvote = async (id) => {
+    const success = await upvote(id);
+    if (success) toast.success('Vote added!');
+  };
+
+  const handleFlagOutdated = async (resourceId) => {
+    const item = flaggedItems.find((resource) => resource.id === resourceId);
+    const { error } = await supabase
+      .from('resources')
+      .update({ flag_count: (item?.flag_count || 0) + 1 })
+      .eq('id', resourceId);
+    if (error) return toast.error(error.message);
+    toast.success('Resource flagged as outdated.');
+    await loadFlaggedItems();
   };
 
   const handleProposeAlternative = (resourceName) => {
@@ -329,6 +231,7 @@ export default function Community() {
                       <button
                         type="button"
                         onClick={() => handleUpvote(item.id)}
+                        disabled={suggestionsLoading}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                           item.hasUpvoted
                             ? 'bg-primary-600 text-white shadow-md shadow-primary-500/25 ring-2 ring-primary-500/20 scale-102'
@@ -369,7 +272,7 @@ export default function Community() {
                 Flagged as outdated
               </h2>
               <Badge variant="warning" dot>
-                {FLAGGED_ITEMS.length} items flagged
+                {flaggedItems.length} items flagged
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -380,7 +283,7 @@ export default function Community() {
 
         {/* Simpler List of Flagged Rows */}
         <div className="space-y-3">
-          {FLAGGED_ITEMS.map((flag) => (
+          {flaggedItems.map((flag) => (
             <Card
               key={flag.id}
               className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-l-amber-500"
@@ -404,7 +307,17 @@ export default function Community() {
               </div>
 
               {/* Action Button */}
-              <div className="shrink-0 self-end sm:self-center">
+              <div className="shrink-0 self-end sm:self-center flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={AlertTriangle}
+                  onClick={() => handleFlagOutdated(flag.id)}
+                  disabled={flaggedLoading}
+                  className="text-xs font-semibold"
+                >
+                  Flag as outdated
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Play,
@@ -24,233 +24,49 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button, Card, Badge, Avatar, ProgressBar } from '../components/common';
+import { useAuth } from '../hooks/useAuth';
+import { usePath } from '../hooks/usePath';
+import { useProgress } from '../hooks/useProgress';
+import { useCreatePath } from '../hooks/useCreatePath';
+import { useGroups } from '../hooks/useGroups';
+import { supabase } from '../lib/supabaseClient';
+import Skeleton from '../components/common/Skeleton';
 
-// Default Path Details with 7 Steps
-const INITIAL_PATH_DATA = {
-  title: 'Fullstack React & Next.js Architecture',
-  description: 'A comprehensive, peer-reviewed roadmap to mastering modern full-stack React 19, server actions, optimistic UI, caching strategies, and production deployments.',
-  author: 'Alex Turner',
-  authorRole: 'Staff Frontend Architect',
-  followers: '2,450',
-  forksCount: 6,
-  healthScore: 94,
-  category: 'Web Dev',
-  rating: 4.9,
-  reviewsCount: 184,
-  steps: [
-    {
-      id: 1,
-      number: 1,
-      title: 'Modern JavaScript & TypeScript Prerequisites',
-      description: 'Review async iterators, closures, TypeScript generics, discriminant unions, and module bundlers.',
-      isCompleted: true,
-      resources: [
-        {
-          id: 'r1-1',
-          type: 'doc',
-          title: 'TypeScript 5.x Deep Dive & Utility Types',
-          duration: '35 mins read',
-          progress: '100% finished',
-        },
-        {
-          id: 'r1-2',
-          type: 'video',
-          title: 'Mastering JavaScript Event Loop & Microtasks',
-          duration: '42 mins video',
-          progress: '100% finished',
-        },
-      ],
-    },
-    {
-      id: 2,
-      number: 2,
-      title: 'React 19 Core Mental Model & Hook Composition',
-      description: 'Understand the fiber reconciliation engine, useActionState, useOptimistic, and compiler optimizations.',
-      isCompleted: true,
-      resources: [
-        {
-          id: 'r2-1',
-          type: 'doc',
-          title: 'React 19 Official Upgrade & Architecture Guide',
-          duration: '25 mins read',
-          progress: '100% finished',
-        },
-        {
-          id: 'r2-2',
-          type: 'video',
-          title: 'Concurrency, Transitions & useActionState Deep Dive',
-          duration: '50 mins video',
-          progress: '100% finished',
-        },
-      ],
-    },
-    {
-      id: 3,
-      number: 3,
-      title: 'Advanced Component Patterns & Custom Hook Architecture',
-      description: 'Compound components, render props with polymorphic types, custom hook test harnesses, and headless UI.',
-      isCompleted: true,
-      resources: [
-        {
-          id: 'r3-1',
-          type: 'article',
-          title: 'Building Bulletproof Polymorphic Components in TypeScript',
-          duration: '20 mins read',
-          progress: '100% finished',
-        },
-        {
-          id: 'r3-2',
-          type: 'project',
-          title: 'Mini-Lab: Headless Modal & Dropdown Composition',
-          duration: '1.5 hours hands-on',
-          progress: '100% finished',
-        },
-      ],
-    },
-    {
-      id: 4,
-      number: 4,
-      title: 'Server Components & Next.js App Router Internals',
-      description: 'Deconstruct React Server Components (RSC), streaming SSR with Suspense, client boundaries, and caching layers.',
-      isCompleted: false,
-      resources: [
-        {
-          id: 'r4-1',
-          type: 'video',
-          title: 'RSC Mental Model from Scratch (No Magic)',
-          duration: '38 mins video',
-          progress: '78% finished',
-        },
-        {
-          id: 'r4-2',
-          type: 'doc',
-          title: 'Next.js App Router: Caching, ISR & Server Actions Spec',
-          duration: '30 mins read',
-          progress: '65% finished',
-        },
-        {
-          id: 'r4-3',
-          type: 'article',
-          title: 'Preventing Waterfalls with Parallel Data Fetching in Server Components',
-          duration: '18 mins read',
-          progress: '40% finished',
-        },
-        {
-          id: 'r4-4',
-          type: 'project',
-          title: 'Hands-on Milestone: Streaming Catalog with Suspense Boundaries',
-          duration: '2 hours coding',
-          progress: 'Not started',
-        },
-      ],
-    },
-    {
-      id: 5,
-      number: 5,
-      title: 'Full-Stack State Management & Server Actions',
-      description: 'Zustand client state, TanStack Query integration, form mutations with Server Actions, and optimistic updates.',
-      isCompleted: false,
-      resources: [
-        {
-          id: 'r5-1',
-          type: 'article',
-          title: 'Optimistic UI Updates with Server Actions & useOptimistic',
-          duration: '22 mins read',
-          progress: 'Not started',
-        },
-        {
-          id: 'r5-2',
-          type: 'video',
-          title: 'When to Use Zustand vs React Context vs Server Cache',
-          duration: '45 mins video',
-          progress: 'Not started',
-        },
-      ],
-    },
-    {
-      id: 6,
-      number: 6,
-      title: 'Performance Optimization, Caching & Bundle Analysis',
-      description: 'Dynamic imports, Webpack/Turbopack analysis, image optimization, edge caching, and Core Web Vitals profiling.',
-      isCompleted: false,
-      resources: [
-        {
-          id: 'r6-1',
-          type: 'doc',
-          title: 'Core Web Vitals Optimization Checklist for Next.js Apps',
-          duration: '25 mins read',
-          progress: 'Not started',
-        },
-      ],
-    },
-    {
-      id: 7,
-      number: 7,
-      title: 'Production Deployment, CI/CD & Observability',
-      description: 'Vercel & Docker containerized deployments, OpenTelemetry tracing, automated Lighthouse testing, and error monitoring with Sentry.',
-      isCompleted: false,
-      resources: [
-        {
-          id: 'r7-1',
-          type: 'project',
-          title: 'Capstone: End-to-End Enterprise React App with Full CI/CD',
-          duration: '4 hours capstone',
-          progress: 'Not started',
-        },
-      ],
-    },
-  ],
-};
-
-// Initial Reviews Mock
-const INITIAL_REVIEWS = [
-  {
-    id: 1,
-    author: 'Sarah Connor',
-    role: 'Senior Engineer at FinTech Corp',
-    rating: 5,
-    date: '3 days ago',
-    comment: 'The explanation of Server Components in Step 4 saved me dozens of hours of trial and error. The recommended resources are pristine.',
-    helpfulCount: 24,
-  },
-  {
-    id: 2,
-    author: 'Devon Miles',
-    role: 'Full-Stack Developer',
-    rating: 5,
-    date: '1 week ago',
-    comment: 'Clear roadmap with high-signal resources. Step 2 & 3 custom hook composition patterns directly improved our codebase at work.',
-    helpfulCount: 16,
-  },
-  {
-    id: 3,
-    author: 'Elena Rostova',
-    role: 'Frontend Specialist',
-    rating: 4,
-    date: '2 weeks ago',
-    comment: 'Excellent path overall. Would love to see an additional module on TanStack Table for complex data grids, but the core fundamentals are 10/10.',
-    helpfulCount: 9,
-  },
-];
+function PathDetailSkeleton() {
+  return (
+    <div className="space-y-10 max-w-4xl mx-auto py-2 sm:py-6">
+      <div className="flex justify-between"><Skeleton width={140} height={34} /><Skeleton width={190} height={34} /></div>
+      <div className="space-y-5 pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex gap-2"><Skeleton width={80} height={24} variant="badge" /><Skeleton width={90} height={24} variant="badge" /></div>
+        <Skeleton width="75%" height={48} />
+        <Skeleton width="90%" height={48} />
+        <Skeleton width="55%" height={24} />
+        <div className="flex gap-3"><Skeleton width={130} height={40} /><Skeleton width={90} height={40} /></div>
+      </div>
+      <Card className="p-5 sm:p-6 space-y-4"><Skeleton width="100%" height={20} /><Skeleton width="100%" height={14} /><Skeleton width="45%" height={14} /></Card>
+      <div className="space-y-4"><Skeleton width="45%" height={30} count={1} /><Skeleton height={110} count={4} /></div>
+    </div>
+  );
+}
 
 export default function PathDetail() {
-  const { id } = useParams();
+  const { id: pathId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { path, loading: pathLoading, error: pathError, refetch: refetchPath } = usePath(pathId);
+  const { progress, markStepComplete, refetch: refetchProgress } = useProgress(user?.id, pathId);
+  const { forkPath, loading: forkLoading } = useCreatePath({ userId: user?.id });
+  const { joinOrCreateGroup } = useGroups(pathId, user?.id);
+  const [isStarted, setIsStarted] = useState(false);
 
-  // Format title if ID is provided in route
-  const displayTitle = useMemo(() => {
-    if (!id || id === 'react-mastery' || id === 'fullstack-react-nextjs') {
-      return INITIAL_PATH_DATA.title;
-    }
-    return id
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }, [id]);
-  const [steps, setSteps] = useState(INITIAL_PATH_DATA.steps);
-  // Current active step ID (first uncompleted step, default id: 4)
+  const steps = useMemo(() => (path?.steps || []).map((step, index) => ({
+    ...step,
+    number: index + 1,
+    isCompleted: progress.some((item) => item.step_id === step.id && item.completed),
+  })), [path, progress]);
   const currentStepId = useMemo(() => {
     const firstUnfinished = steps.find((s) => !s.isCompleted);
-    return firstUnfinished ? firstUnfinished.id : steps[steps.length - 1].id;
+    return firstUnfinished?.id || steps[steps.length - 1]?.id;
   }, [steps]);
 
   // Open / expanded step rows: current step is expanded by default
@@ -259,19 +75,37 @@ export default function PathDetail() {
   }));
 
   const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isStarted, setIsStarted] = useState(false);
-
-  // Reviews state & Review Modal
-  const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
-  const [authorName, setAuthorName] = useState('Alex Turner');
+  const [authorName, setAuthorName] = useState(user?.user_metadata?.username || user?.email || '');
+  const [suggestionResource, setSuggestionResource] = useState(null);
+  const [suggestionUrl, setSuggestionUrl] = useState('');
+  const [suggestionTitle, setSuggestionTitle] = useState('');
+  const [suggestionReason, setSuggestionReason] = useState('');
 
   // Compute progress
-  const completedCount = steps.filter((s) => s.isCompleted).length;
+  const completedCount = progress.filter((item) => item.completed && steps.some((step) => step.id === item.step_id)).length;
   const totalSteps = steps.length;
-  const progressPercent = Math.round((completedCount / totalSteps) * 100);
+  const progressPercent = totalSteps ? Math.round((completedCount / totalSteps) * 100) : 0;
+  const reviews = useMemo(() => (path?.steps || []).flatMap((step) =>
+    (step.resources || []).flatMap((resource) => (resource.reviews || []).map((review) => ({
+      ...review,
+      resource_id: resource.id,
+      author: review.user_id || 'Peer learner',
+      role: 'Verified Path Learner',
+      date: review.created_at ? new Date(review.created_at).toLocaleDateString() : 'Recently',
+      helpfulCount: 0,
+    })))
+  ), [path]);
+
+  if (pathLoading) {
+    return <PathDetailSkeleton />;
+  }
+
+  if (pathError || !path) {
+    return <div className="max-w-4xl mx-auto py-10 text-center text-slate-500">Unable to load this path.</div>;
+  }
 
   // Toggle step expansion
   const toggleStepExpand = (stepId) => {
@@ -282,52 +116,84 @@ export default function PathDetail() {
   };
 
   // Toggle step completion checkbox
-  const handleToggleCompletion = (stepId, e) => {
+  const handleToggleCompletion = async (stepId, e) => {
     e.stopPropagation();
-    setSteps((prevSteps) =>
-      prevSteps.map((step) => {
-        if (step.id === stepId) {
-          const nextCompleted = !step.isCompleted;
-          if (nextCompleted) {
-            toast.success(`Completed Step ${step.number}: ${step.title}`);
-          }
-          return { ...step, isCompleted: nextCompleted };
-        }
-        return step;
-      })
-    );
+    const step = steps.find((item) => item.id === stepId);
+    await markStepComplete(stepId, !step.isCompleted);
+    if (!step.isCompleted) toast.success(`Completed Step ${step.number}: ${step.title}`);
   };
 
-  // Suggest alternative resource handler
-  const handleSuggestAlternative = (resourceTitle) => {
-    console.log('Suggest alternative for resource:', resourceTitle);
-    toast.success(`Suggestion opened for: "${resourceTitle}"`);
+  const handleSuggestAlternative = (resource) => {
+    setSuggestionResource(resource);
+    setSuggestionTitle(resource.title);
+    setSuggestionUrl(resource.url || '');
   };
 
-  // Fork handler
-  const handleFork = () => {
-    toast.success('Forked path to your workspace! You can customize this version.');
+  const handleStart = async () => {
+    if (!user) return toast.error('Sign in to start this path.');
+    if (progress.length === 0) {
+      const { error } = await supabase.from('progress').insert(steps.map((step) => ({
+        user_id: user.id,
+        path_id: pathId,
+        step_id: step.id,
+        completed: false,
+      })));
+      if (error) return toast.error(error.message);
+      await refetchProgress();
+    }
+    try {
+      await joinOrCreateGroup(pathId, user.id);
+    } catch (error) {
+      toast.error(error.message || 'Unable to join a peer group.');
+    }
+    setIsStarted(true);
+    toast.success('Path is now in progress.');
   };
 
-  // Submit Review Modal
-  const handleReviewSubmit = (e) => {
+  const handleFork = async () => {
+    if (!user) return toast.error('Sign in to fork this path.');
+    const forked = await forkPath(pathId);
+    if (!forked) return toast.error('Unable to fork this path.');
+    toast.success('Forked path to your workspace!');
+    navigate(`/path/${forked.pathId}`);
+  };
+
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
-
-    const newReviewObj = {
-      id: Date.now(),
-      author: authorName || 'Anonymous Learner',
-      role: 'Verified Path Learner',
+    const resourceId = path.steps.flatMap((step) => step.resources || [])[0]?.id;
+    if (!resourceId || !newComment.trim() || !user) return;
+    const { error } = await supabase.from('reviews').insert({
+      resource_id: resourceId,
+      user_id: user.id,
       rating: newRating,
-      date: 'Just now',
       comment: newComment.trim(),
-      helpfulCount: 0,
-    };
-
-    setReviews([newReviewObj, ...reviews]);
+    });
+    if (error) return toast.error(error.message);
+    const { data: resourceReviews, error: reviewsError } = await supabase.from('reviews').select('rating').eq('resource_id', resourceId);
+    if (reviewsError) return toast.error(reviewsError.message);
+    const average = resourceReviews.reduce((sum, review) => sum + review.rating, 0) / resourceReviews.length;
+    const { error: updateError } = await supabase.from('resources').update({ avg_rating: average }).eq('id', resourceId);
+    if (updateError) return toast.error(updateError.message);
     setNewComment('');
     setIsReviewModalOpen(false);
+    await refetchPath();
     toast.success('Thank you! Your review was published.');
+  };
+
+  const handleSuggestionSubmit = async (e) => {
+    e.preventDefault();
+    if (!suggestionResource || !user || !suggestionUrl.trim() || !suggestionTitle.trim()) return;
+    const { error } = await supabase.from('suggestions').insert({
+      resource_id: suggestionResource.id,
+      suggested_by: user.id,
+      suggested_url: suggestionUrl.trim(),
+      suggested_title: suggestionTitle.trim(),
+      reason: suggestionReason.trim(),
+    });
+    if (error) return toast.error(error.message);
+    setSuggestionResource(null);
+    setSuggestionReason('');
+    toast.success('Alternative resource suggested.');
   };
 
   // Resource Icon Helper
@@ -386,46 +252,46 @@ export default function PathDetail() {
       <div className="space-y-5 pb-6 border-b border-slate-200 dark:border-slate-800">
         {/* Category & Health Badges */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="primary">{INITIAL_PATH_DATA.category}</Badge>
+          <Badge variant="primary">{path.category || 'Uncategorized'}</Badge>
           <Badge variant="must">MUST LEARN</Badge>
           <Badge variant="success" dot className="font-semibold">
-            Health {INITIAL_PATH_DATA.healthScore}
+            {path.difficulty || 'Path'}
           </Badge>
         </div>
 
         {/* Path Title & Description */}
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
-            {displayTitle}
+            {path.title}
           </h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-            {INITIAL_PATH_DATA.description}
+            {path.description}
           </p>
         </div>
 
         {/* Author Info & Follower Counts */}
         <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-500 dark:text-slate-400 pt-1">
           <div className="flex items-center gap-2">
-            <Avatar name={INITIAL_PATH_DATA.author} size="sm" status="online" />
+            <Avatar name={path.profiles?.username || path.author_id} size="sm" status="online" />
             <span className="font-medium text-slate-800 dark:text-slate-200">
-              {INITIAL_PATH_DATA.author}
+              {path.profiles?.username || path.author_id}
             </span>
-            <span className="text-slate-400 text-xs">({INITIAL_PATH_DATA.authorRole})</span>
+            <span className="text-slate-400 text-xs">(Path author)</span>
           </div>
 
           <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
 
           <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
             <Users className="w-4 h-4 text-slate-400" />
-            <span>{INITIAL_PATH_DATA.followers} learners</span>
+            <span>{path.learners_count || 0} learners</span>
           </div>
 
           <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
 
           <div className="flex items-center gap-1 text-amber-500 font-semibold">
             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-            <span>{INITIAL_PATH_DATA.rating}</span>
-            <span className="text-slate-400 font-normal">({INITIAL_PATH_DATA.reviewsCount} reviews)</span>
+            <span>{reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : '0.0'}</span>
+            <span className="text-slate-400 font-normal">({reviews.length} reviews)</span>
           </div>
         </div>
 
@@ -436,13 +302,10 @@ export default function PathDetail() {
               variant="primary"
               size="md"
               leftIcon={Play}
-              onClick={() => {
-                setIsStarted(true);
-                toast.success('Resumed path milestone!');
-              }}
+              onClick={handleStart}
               className="shadow-md shadow-primary-500/20 font-semibold"
             >
-              {isStarted ? 'Resume path' : 'Start path'}
+              {isStarted || progress.length > 0 ? 'Resume path' : 'Start path'}
             </Button>
 
             <Button
@@ -450,6 +313,7 @@ export default function PathDetail() {
               size="md"
               leftIcon={GitFork}
               onClick={handleFork}
+              isLoading={forkLoading}
               title="Fork this roadmap to create your own customized curriculum"
             >
               Fork
@@ -463,7 +327,7 @@ export default function PathDetail() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer self-start sm:self-center"
           >
             <GitFork className="w-3.5 h-3.5" />
-            <span>Forked {INITIAL_PATH_DATA.forksCount} times — see variants</span>
+            <span>Forked {path.forks_count || 0} times — see variants</span>
           </button>
         </div>
       </div>
@@ -489,8 +353,8 @@ export default function PathDetail() {
           />
 
           <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-            <span>Next up: Step {currentStepId} — Server Components & Next.js App Router Internals</span>
-            <span className="text-primary-600 dark:text-primary-400 font-medium">Est. 4 hours remaining</span>
+            <span>Next up: {currentStepId ? `Step ${steps.find((step) => step.id === currentStepId)?.number}` : 'Complete'}</span>
+            <span className="text-primary-600 dark:text-primary-400 font-medium">{progressPercent}% complete</span>
           </div>
         </div>
       </Card>
@@ -652,14 +516,14 @@ export default function PathDetail() {
                                     </h4>
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
                                       <Clock className="w-3 h-3" />
-                                      {resource.duration}
+                                      {resource.type || 'Resource'}
                                     </p>
                                   </div>
                                 </div>
 
                                 {/* Right-Aligned Progress / Finished Label */}
                                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
-                                  {resource.progress}
+                                  {resource.url ? 'Open resource' : 'No link available'}
                                 </span>
                               </div>
 
@@ -667,7 +531,7 @@ export default function PathDetail() {
                               <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end">
                                 <button
                                   type="button"
-                                  onClick={() => handleSuggestAlternative(resource.title)}
+                                  onClick={() => handleSuggestAlternative(resource)}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
                                 >
                                   <MessageSquarePlus className="w-3 h-3" />
@@ -863,6 +727,29 @@ export default function PathDetail() {
                 <Button variant="primary" type="submit">
                   Submit Review
                 </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {suggestionResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 sm:p-7 relative space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Suggest an alternative</h3>
+              <button type="button" onClick={() => setSuggestionResource(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer" aria-label="Close suggestion form">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500">Suggesting an alternative to: {suggestionResource.title}</p>
+            <form onSubmit={handleSuggestionSubmit} className="space-y-4">
+              <input required type="text" value={suggestionTitle} onChange={(e) => setSuggestionTitle(e.target.value)} placeholder="Suggested resource title" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input required type="url" value={suggestionUrl} onChange={(e) => setSuggestionUrl(e.target.value)} placeholder="https://example.com/resource" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <textarea rows={3} value={suggestionReason} onChange={(e) => setSuggestionReason(e.target.value)} placeholder="Why is this a better alternative?" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button variant="outline" type="button" onClick={() => setSuggestionResource(null)}>Cancel</Button>
+                <Button variant="primary" type="submit">Submit suggestion</Button>
               </div>
             </form>
           </div>

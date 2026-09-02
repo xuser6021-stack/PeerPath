@@ -13,7 +13,6 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { Button, Card, Badge, Avatar, EmptyState } from '../components/common';
 import { usePaths } from '../hooks/usePaths';
 
@@ -35,9 +34,7 @@ export default function Home() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
 
-    // Requirement: Pressing enter should just log the query to console for now
-    console.log('Search query:', searchQuery.trim());
-    toast.success(`Search logged for: "${searchQuery.trim()}"`);
+    navigate(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   return (

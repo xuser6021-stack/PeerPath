@@ -31,14 +31,14 @@ export function usePath(pathId) {
         stepsData.map(async (step) => {
           const { data: resourcesData, error: resErr } = await supabase
             .from('resources')
-            .select('id, title, url, type')
+            .select('id, title, url, type, avg_rating, flag_count')
             .eq('step_id', step.id);
           if (resErr) throw resErr;
           // Fetch reviews for these resources
           const resourceIds = resourcesData.map((r) => r.id);
           const { data: reviewsData = [], error: revErr } = await supabase
             .from('reviews')
-            .select('id, rating, comment, resource_id')
+            .select('id, rating, comment, resource_id, user_id, created_at')
             .in('resource_id', resourceIds);
           if (revErr) throw revErr;
           const resources = resourcesData.map((r) => ({
