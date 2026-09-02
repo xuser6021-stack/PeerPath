@@ -50,7 +50,7 @@ export default function Profile() {
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-300 max-w-xl leading-relaxed">{profile?.bio || 'Building a learning history through peer-guided roadmaps and shared milestones.'}</p>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400 dark:text-slate-500 pt-1">
-                <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {profile?.location || 'Location not set'}</span>
+                <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Location not set</span>
                 <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}</span>
               </div>
             </div>

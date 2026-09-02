@@ -45,53 +45,14 @@ export default function CreatePath() {
 
   // 1. Path Metadata State
   const [metadata, setMetadata] = useState({
-    title: 'Distributed Systems & Microservices in Go',
-    description: 'Learn how to build resilient, highly scalable distributed services with consensus algorithms, gRPC streaming, and event-driven architectures.',
+    title: '',
+    description: '',
     category: 'Web Dev',
     difficulty: 'Intermediate',
   });
 
   // 2. Steps & Nested Resources State
-  const [steps, setSteps] = useState([
-    {
-      id: 'step-1',
-      title: 'Go Concurrency & Goroutine Patterns',
-      description: 'Master channels, worker pools, sync.Mutex, and context cancellation pipelines.',
-      resources: [
-        {
-          id: 'res-1-1',
-          title: 'Effective Go & Concurrency Patterns Guide',
-          url: 'https://go.dev/doc/effective_go#concurrency',
-          type: 'Doc',
-        },
-        {
-          id: 'res-1-2',
-          title: 'Deep Dive: Channels & Mutexes Under the Hood',
-          url: 'https://youtube.com/watch?v=example-go-concurrency',
-          type: 'Video',
-        },
-      ],
-    },
-    {
-      id: 'step-2',
-      title: 'gRPC & Protocol Buffers Service Communication',
-      description: 'Define schema contracts, compile proto files, implement streaming RPCs and middleware.',
-      resources: [
-        {
-          id: 'res-2-1',
-          title: 'Official gRPC Go Quickstart & Schema Definitions',
-          url: 'https://grpc.io/docs/languages/go/quickstart/',
-          type: 'Doc',
-        },
-        {
-          id: 'res-2-2',
-          title: 'Hands-on Lab: Real-Time Stream Processor in Go',
-          url: 'https://github.com/example/grpc-go-lab',
-          type: 'Project',
-        },
-      ],
-    },
-  ]);
+  const [steps, setSteps] = useState([]);
 
   // Preview Modal State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);

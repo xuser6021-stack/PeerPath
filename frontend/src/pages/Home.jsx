@@ -258,7 +258,7 @@ export default function Home() {
 
                         <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
                           <Users className="w-3.5 h-3.5" />
-                          <span>{path.difficulty ? 'Popular' : 'New'}</span>
+                          <span>{path.rating ? `${path.rating.toFixed(1)} rating` : 'No ratings yet'}</span>
                         </div>
                       </div>
                     </div>

@@ -153,6 +153,49 @@ async function removePreviousDemoUsers() {
   }
 }
 
+async function clearDemoData() {
+  const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) throw new Error(`Could not list auth users: ${error.message}`);
+  const demoUserIds = data.users.filter((user) => user.email?.endsWith('@pathforge.demo')).map((user) => user.id);
+  if (demoUserIds.length === 0) {
+    log('No seeded demo users found');
+    return;
+  }
+
+  const { data: demoPaths, error: pathsError } = await supabase.from('paths').select('id').in('author_id', demoUserIds);
+  if (pathsError) throw pathsError;
+  const pathIds = (demoPaths || []).map((path) => path.id);
+  const { data: demoSteps, error: stepsError } = pathIds.length ? await supabase.from('steps').select('id').in('path_id', pathIds) : { data: [], error: null };
+  if (stepsError) throw stepsError;
+  const stepIds = (demoSteps || []).map((step) => step.id);
+  const { data: demoResources, error: resourcesError } = stepIds.length ? await supabase.from('resources').select('id').in('step_id', stepIds) : { data: [], error: null };
+  if (resourcesError) throw resourcesError;
+  const resourceIds = (demoResources || []).map((resource) => resource.id);
+
+  if (resourceIds.length) await removeWhereIn('suggestions', 'resource_id', resourceIds);
+  const { data: demoGroups, error: groupsError } = pathIds.length ? await supabase.from('groups').select('id').in('path_id', pathIds) : { data: [], error: null };
+  if (groupsError) throw groupsError;
+  const groupIds = (demoGroups || []).map((group) => group.id);
+  if (groupIds.length) await removeWhereIn('group_members', 'group_id', groupIds);
+  if (pathIds.length) await removeWhereIn('groups', 'path_id', pathIds);
+  if (demoUserIds.length) await removeWhereIn('progress', 'user_id', demoUserIds);
+  if (resourceIds.length) await removeWhereIn('reviews', 'resource_id', resourceIds);
+  if (stepIds.length) await removeWhereIn('resources', 'step_id', stepIds);
+  if (pathIds.length) await removeWhereIn('steps', 'path_id', pathIds);
+  if (pathIds.length) await removeWhereIn('paths', 'id', pathIds);
+  await removeWhereIn('profiles', 'id', demoUserIds);
+  for (const userId of demoUserIds) {
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
+    if (deleteError) throw deleteError;
+  }
+  log(`Removed ${demoUserIds.length} seeded demo users and their related data`);
+}
+
+async function removeWhereIn(table, column, values) {
+  const { error } = await supabase.from(table).delete().in(column, values);
+  if (error) throw new Error(`Could not clear seeded ${table}: ${error.message}`);
+}
+
 async function createUsers() {
   const created = [];
   for (const demoUser of users) {
@@ -286,6 +329,11 @@ async function createSuggestions(authUsers, resources, createdPaths) {
 
 async function main() {
   log('Starting PathForge demo seed');
+  if (process.argv.includes('--clear-demo')) {
+    await clearDemoData();
+    log('Demo cleanup complete');
+    return;
+  }
   await clearDatabase();
   await removePreviousDemoUsers();
   const authUsers = await createUsers();

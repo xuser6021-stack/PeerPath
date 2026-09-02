@@ -51,9 +51,9 @@ export function useProfile(userId) {
     setError(null);
     try {
       const [profileResult, createdResult, progressResult, reviewsResult, suggestionsResult] = await Promise.all([
-        supabase.from('profiles').select('id, username, avatar_url, bio, location, created_at').eq('id', userId).single(),
+        supabase.from('profiles').select('id, username, avatar_url, bio, created_at').eq('id', userId).single(),
         supabase.from('paths').select('id, title, description, category, difficulty, is_public, created_at, author_id, profiles(username), steps(id, title, order_index)').eq('author_id', userId).order('created_at', { ascending: false }),
-        supabase.from('progress').select('path_id, step_id, completed, completed_at, created_at').eq('user_id', userId),
+        supabase.from('progress').select('path_id, step_id, completed, completed_at').eq('user_id', userId),
         supabase.from('reviews').select('id, created_at').eq('user_id', userId),
         supabase.from('suggestions').select('id, created_at').eq('suggested_by', userId),
       ]);

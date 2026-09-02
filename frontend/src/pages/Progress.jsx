@@ -62,7 +62,7 @@ export default function Progress() {
     const loadProgress = async () => {
       setLoading(true);
       const [{ data: progressData, error: progressError }, { count: createdPathsCountFromDb, error: createdError }] = await Promise.all([
-        supabase.from('progress').select('user_id, path_id, step_id, completed, completed_at, created_at').eq('user_id', user.id),
+        supabase.from('progress').select('user_id, path_id, step_id, completed, completed_at').eq('user_id', user.id),
         supabase.from('paths').select('id', { count: 'exact', head: true }).eq('author_id', user.id),
       ]);
       if (progressError || createdError) {
